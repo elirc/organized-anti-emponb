@@ -1,0 +1,300 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id              String   @id @default(uuid())
+  email           String   @unique
+  passwordHash    String
+  firstName       String
+  lastName        String
+  role            String   // SYSTEM_ADMIN, HR_ADMIN, etc.
+
+  isActive        Boolean  @default(true)
+  departmentId    String?
+  department      Department? @relation(fields: [departmentId], references: [id])
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  employeeProfile EmployeeProfile?
+  assignedTasks   OnboardingTask[] @relation("AssignedTasks")
+  createdCases    OnboardingCase[] @relation("CreatedCases")
+  approvals       Approval[]
+  auditEvents     AuditEvent[]
+  
+  uploadedDocuments Document[]     @relation("UploadedDocuments")
+  reviewedDocuments Document[]     @relation("ReviewedDocuments")
+}
+
+model Department {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  cases       OnboardingCase[]
+}
+
+model EmployeeProfile {
+  id              String   @id @default(uuid())
+  userId          String?  @unique
+  user            User?    @relation(fields: [userId], references: [id])
+
+  legalFirstName  String
+  legalLastName   String
+  preferredName   String?
+  personalEmail   String?
+  phone           String?
+  jobTitle        String
+  employmentType  String   // FULL_TIME, CONTRACTOR, etc.
+  startDate       DateTime
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  onboardingCases OnboardingCase[]
+}
+
+model WorkflowTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stages      WorkflowStageTemplate[]
+  cases       OnboardingCase[]
+}
+
+model WorkflowStageTemplate {
+  id                  String   @id @default(uuid())
+  workflowTemplateId   String
+  workflowTemplate     WorkflowTemplate @relation(fields: [workflowTemplateId], references: [id])
+
+  name                String
+  description         String?
+  sortOrder           Int
+
+  taskTemplates       TaskTemplate[]
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([workflowTemplateId])
+}
+
+model TaskTemplate {
+  id                  String   @id @default(uuid())
+  stageTemplateId      String
+  stageTemplate        WorkflowStageTemplate @relation(fields: [stageTemplateId], references: [id])
+
+  title               String
+  description         String?
+  defaultAssigneeRole String?
+  taskType            String   // HR, IT, PAYROLL, etc.
+  requiresApproval    Boolean @default(false)
+  dueOffsetDays       Int?
+
+  sortOrder           Int
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([stageTemplateId])
+}
+
+model OnboardingCase {
+  id                  String   @id @default(uuid())
+
+  employeeProfileId   String
+  employeeProfile     EmployeeProfile @relation(fields: [employeeProfileId], references: [id])
+
+  departmentId        String
+  department          Department @relation(fields: [departmentId], references: [id])
+
+  workflowTemplateId  String
+  workflowTemplate    WorkflowTemplate @relation(fields: [workflowTemplateId], references: [id])
+
+  createdById         String
+  createdBy           User @relation("CreatedCases", fields: [createdById], references: [id])
+
+  status              String   @default("DRAFT")
+  progressPercent     Int @default(0)
+
+  startDate           DateTime
+  dueDate             DateTime?
+  completedAt         DateTime?
+  cancelledAt         DateTime?
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  tasks               OnboardingTask[]
+  documents           Document[]
+  activities          OnboardingActivity[]
+  approvals           Approval[]
+
+  @@index([departmentId])
+  @@index([status])
+  @@index([employeeProfileId])
+}
+
+model OnboardingTask {
+  id                  String   @id @default(uuid())
+
+  onboardingCaseId     String
+  onboardingCase       OnboardingCase @relation(fields: [onboardingCaseId], references: [id])
+
+  title               String
+  description         String?
+  taskType            String
+  status              String   @default("TODO")
+  requiresApproval    Boolean  @default(false)
+
+  assignedToId        String?
+  assignedTo          User? @relation("AssignedTasks", fields: [assignedToId], references: [id])
+
+  assignedRole        String?
+  dueDate             DateTime?
+  completedAt         DateTime?
+  completedById       String?
+  blockedReason       String?
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  approvals           Approval[]
+
+  @@index([onboardingCaseId])
+  @@index([assignedToId])
+  @@index([status])
+}
+
+model Approval {
+  id                  String   @id @default(uuid())
+
+  onboardingCaseId     String
+  onboardingCase       OnboardingCase @relation(fields: [onboardingCaseId], references: [id])
+
+  taskId              String
+  task                OnboardingTask @relation(fields: [taskId], references: [id])
+
+  approverId          String?
+  approver            User? @relation(fields: [approverId], references: [id])
+
+  status              String   @default("PENDING")
+  requestedAt         DateTime @default(now())
+  decidedAt           DateTime?
+  remarks             String?
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([onboardingCaseId])
+  @@index([taskId])
+  @@index([approverId])
+  @@index([status])
+}
+
+model Document {
+  id                  String   @id @default(uuid())
+
+  onboardingCaseId     String
+  onboardingCase       OnboardingCase @relation(fields: [onboardingCaseId], references: [id])
+
+  title               String
+  fileName            String
+  fileUrl             String
+  category            String
+
+  status              String   @default("PENDING")
+  uploadedById        String
+  uploadedBy          User     @relation("UploadedDocuments", fields: [uploadedById], references: [id])
+  
+  reviewedById        String?
+  reviewedBy          User?    @relation("ReviewedDocuments", fields: [reviewedById], references: [id])
+  remarks             String?
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([onboardingCaseId])
+  @@index([status])
+}
+
+model OnboardingActivity {
+  id                  String   @id @default(uuid())
+
+  onboardingCaseId     String
+  onboardingCase       OnboardingCase @relation(fields: [onboardingCaseId], references: [id])
+
+  actorId             String?
+  action              String
+  entityType          String
+  entityId            String?
+  field               String?
+  oldValue            String?
+  newValue            String?
+  metadata            String?
+
+  createdAt           DateTime @default(now())
+
+  @@index([onboardingCaseId])
+}
+
+model AuditEvent {
+  id          String   @id @default(uuid())
+
+  actorId     String?
+  actor       User?    @relation(fields: [actorId], references: [id])
+
+  entityType  String
+  entityId    String
+  action      String
+  metadata    String?
+
+  ipAddress   String?
+  userAgent   String?
+
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+}
+
+model RefreshToken {
+  id          String   @id @default(uuid())
+  userId      String
+  tokenHash   String
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+}
+
+model EmailNotification {
+  id               String   @id @default(uuid())
+  onboardingCaseId String?
+  recipient        String
+  subject          String
+  body             String
+  status           String   @default("PENDING")
+  attempts         Int      @default(0)
+  lastError        String?
+  sentAt           DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([status])
+}
