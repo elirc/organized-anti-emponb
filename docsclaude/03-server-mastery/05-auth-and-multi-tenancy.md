@@ -9,17 +9,32 @@ Authentication verifies *who* a user is; Authorization establishes *what* resour
 Our platform utilizes an explicit permission-role matrix. Instead of checking a user's role directly inside routers, we check for specific **Permissions** required to execute actions.
 
 Inspect this implementation:
-[backend/src/shared/middleware/requirePermission.middleware.ts:31-38](backend/src/shared/middleware/requirePermission.middleware.ts#L31-L38):
+[backend/src/middleware/requirePermission.middleware.ts:35-59](backend/src/middleware/requirePermission.middleware.ts#L35-L59):
 
 ```typescript
-    const userPermissions = ROLE_PERMISSIONS[user.role as Role] || [];
-    if (!userPermissions.includes(permission)) {
-      throw new AppError(
-        ErrorCodes.FORBIDDEN,
-        403,
-        `Permission required: ${permission}`
-      );
+export const requireRole = (allowedRoles: UserRole[]): RequestHandler => {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) {
+        throw new AppError(ErrorCodes.UNAUTHORIZED, 401, 'Authentication required');
+      }
+      if (!allowedRoles.includes(req.user.role as UserRole)) {
+        throw new AppError(ErrorCodes.FORBIDDEN, 403, 'Access denied: insufficient permissions');
+      }
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
+};
+
+export const requirePermission = (permission: keyof typeof PermissionMatrix): RequestHandler => {
+  const allowedRoles = PermissionMatrix[permission];
+  return requireRole(allowedRoles);
+};
 ```
+
+The direction of the lookup is worth pausing on: the matrix maps **permission → allowed roles** (`PermissionMatrix` at [L19-L30](backend/src/middleware/requirePermission.middleware.ts#L19-L30)), and `requirePermission` resolves that list **once, at route-registration time** — note it runs outside the returned handler. Adding a role to a permission is a one-line matrix edit; no route changes.
 
 ### Why Permissions-Based RBAC is a Senior Standard:
 1. **Decoupled Roles**: The server logic is protected by permission strings (e.g. `VIEW_REPORTS`). If HR Admins and managers both need reports access, you simply add the permission to both roles inside the permission matrix. You do not have to write custom conditional role checks inside controllers.
@@ -72,6 +87,6 @@ const onboardingCase = await prisma.onboardingCase.findUnique({
 
 ## Drills
 
-1. **RBAC Permission Verification**: Open [backend/src/shared/middleware/requirePermission.middleware.ts:6-15](backend/src/shared/middleware/requirePermission.middleware.ts#L6-L15) and map out which permissions are granted to the `MANAGER` role versus the `IT_SPECIALIST` role.
+1. **RBAC Permission Verification**: Open [backend/src/middleware/requirePermission.middleware.ts:19-30](backend/src/middleware/requirePermission.middleware.ts#L19-L30) and map out which permissions are granted to the `MANAGER` role versus the `IT_ADMIN` role (note: the matrix has no `IT_SPECIALIST`).
 2. **IDOR Security Drill**: Write a security check handler that blocks a user from viewing a document metadata file if their department does not match the case's department scope.
 3. **Session Expiry Review**: Review [backend/src/shared/utils/jwt.ts](backend/src/shared/utils/jwt.ts). Identify the lifespan of an access token versus a refresh token and explain the security trade-offs of this configuration.

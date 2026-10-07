@@ -35,13 +35,13 @@ Design patterns are reusable solutions to common software development problems. 
 ---
 
 ## 6. Zod Request Validator Middleware Pattern
-* **File Anchor**: [backend/src/shared/middleware/validation.middleware.ts:6-14](backend/src/shared/middleware/validation.middleware.ts#L6-L14)
+* **File Anchor**: [backend/src/middleware/validate.middleware.ts:4-17](backend/src/middleware/validate.middleware.ts#L4-L17)
 * **Description**: Parses incoming HTTP request bodies against strict Zod schemas inside route handler chains. This rejects malformed payloads immediately with a `400 Bad Request` before the controller action is even invoked.
 
 ---
 
 ## 7. Permission-Based RBAC Gate Pattern
-* **File Anchor**: [backend/src/shared/middleware/requirePermission.middleware.ts:31-38](backend/src/shared/middleware/requirePermission.middleware.ts#L31-L38)
+* **File Anchor**: [backend/src/middleware/requirePermission.middleware.ts:56-59](backend/src/middleware/requirePermission.middleware.ts#L56-L59)
 * **Description**: Verifies that the authenticated user holds specific permissions before granting access. This decouples user roles from platform features, allowing permissions to be updated without modifying routing code.
 
 ---
@@ -59,7 +59,7 @@ Design patterns are reusable solutions to common software development problems. 
 ---
 
 ## 10. Global Exception Boundary Translation Pattern
-* **File Anchor**: [backend/src/shared/middleware/errorHandler.ts:11-20](backend/src/shared/middleware/errorHandler.ts#L11-L20)
+* **File Anchor**: [backend/src/middleware/error.middleware.ts:6-40](backend/src/middleware/error.middleware.ts#L6-L40)
 * **Description**: Centralizes error handling by catching all thrown exceptions and translating them into structured JSON error payloads. This prevents raw database error leaks and presents clean, actionable feedback to the frontend.
 
 ---

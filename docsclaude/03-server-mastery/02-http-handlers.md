@@ -40,23 +40,29 @@ graph TD
 To protect business logic layers, we validate request bodies at the entry portal using generic Zod middleware.
 
 Inspect this implementation:
-[backend/src/shared/middleware/validation.middleware.ts:6-14](backend/src/shared/middleware/validation.middleware.ts#L6-L14):
+[backend/src/middleware/validate.middleware.ts:4-17](backend/src/middleware/validate.middleware.ts#L4-L17):
 
 ```typescript
-export function validateRequest(schema: ZodSchema) {
+export const validate = (
+  schema: AnyZodObject,
+  source: 'body' | 'query' | 'params' = 'body'
+) => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const result = schema.safeParse(req.body);
-    if (!result.success) {
-      const errors = result.error.errors.map(err => ({
-        field: err.path.join('.'),
-        message: err.message,
-      }));
+    try {
+      const parsed = schema.parse(req[source]);
+      req[source] = parsed;
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
+};
 ```
 
 ### Why This Design Is Superior:
 1. **Separation of Concerns**: Controllers assume that all input variables (e.g. UUID formats or string lengths) are correct. No manual parsing or parameter validation checks clutter the service layer.
-2. **Clean Fail-Fast**: If validation fails, `res.status(400).json({ errors })` is returned immediately. The controller is never instantiated, conserving memory and database query overhead.
-3. **Guaranteed Type Safety**: Succeeding blocks can safely access verified fields knowing they conform to the schema constraints.
+2. **Clean Fail-Fast — but notice *where* the 400 is produced**: `validate` itself never touches `res`. It calls `schema.parse` (the throwing variant, not `safeParse`) and forwards the `ZodError` via `next(error)`; the global `error.middleware.ts` then turns it into a 400 with `err.flatten().fieldErrors`. One middleware owns validation, another owns the response shape — trace both to understand a failed request end to end.
+3. **Guaranteed Type Safety**: Succeeding blocks can safely access verified fields — note `req[source] = parsed` writes the *parsed* (coerced, stripped) value back, so controllers see what Zod produced, not the raw payload.
 
 ---
 
@@ -65,22 +71,29 @@ export function validateRequest(schema: ZodSchema) {
 In modern servers, manual try/catch blocks are avoided inside controllers. Instead, we use an asynchronous handler wrapper to catch exceptions and forward them to a centralized global error boundary.
 
 Inspect our global error handler middleware:
-[backend/src/shared/middleware/errorHandler.ts:11-20](backend/src/shared/middleware/errorHandler.ts#L11-L20):
+[backend/src/middleware/error.middleware.ts:6-22](backend/src/middleware/error.middleware.ts#L6-L22):
 
 ```typescript
-export const errorHandler = (
+export const errorMiddleware = (
   err: Error,
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
+  // Log the full error to console for easy development and debugging
+  console.error(`[Error] ${req.method} ${req.url} - `, err);
+
   if (err instanceof AppError) {
     return res.status(err.statusCode).json({
-      code: err.errorCode,
+      success: false,
+      errorCode: err.errorCode,
       message: err.message,
-      errors: err.errors,
+      metadata: err.metadata,
     });
+  }
 ```
+
+Note the three-way branch below this excerpt: a `ZodError` becomes a 400 with flattened field errors, and anything else becomes a 500 whose message is hidden behind `NODE_ENV === 'production'` — that one line is the difference between a debuggable dev server and a leaky production one.
 
 > **Senior aside:** *Never log stack traces to clients in production. Returning raw exceptions leaks internal file paths and database query architectures to the public web, inviting security exploits.*
 
@@ -103,4 +116,4 @@ export const errorHandler = (
 
 1. **Middleware Pipeline Audit**: Open [backend/src/modules/onboardingCases/onboardingCases.routes.ts:31-34](backend/src/modules/onboardingCases/onboardingCases.routes.ts#L31-L34). List every middleware executed in order when an HR Admin requests workflow launches.
 2. **Middleware Writing**: Create a simple middleware `requestTimeTracker` inside a test file that tracks the exact duration in milliseconds from request receipt to response delivery, printing results to the logs.
-3. **Error Boundary Test**: Temporarily write `throw new AppError('TEST_CRASH', 500)` inside a controller action. Trigger the route and verify the exact JSON payload returned to the browser.
+3. **Error Boundary Test**: Temporarily write `throw new AppError(ErrorCodes.INTERNAL_SERVER_ERROR, 500, 'Test crash')` inside a controller action (the real signature is `(errorCode, statusCode, message, metadata?)` — see `backend/src/shared/errors/AppError.ts`). Trigger the route and verify the JSON payload matches the `{ success, errorCode, message, metadata }` shape from `error.middleware.ts`.

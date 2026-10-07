@@ -1,5 +1,7 @@
 # Monorepo Operations Mastery: 8-Week Upskilling Curriculum
 
+> Snapshot note: this repo is an organized snapshot of `elirc/antiemponb`. Its code and `docsclaude/` pages matched that repo (which also adds an `astraupskill/` course and `tests/*.mjs` files not present here), so the `docsclaude/` refinements made there are carried over here.
+
 Welcome to the HRFlow Onboarding Platform Educational Lab. This curriculum is designed to systematically upskill junior developers into highly rigorous mid- and senior-level engineers using this TypeScript React and Node.js monorepo as a live development laboratory.
 
 Rather than presenting passive summaries or abstract API specifications, this course requires active practice: reading, modifying, building, refactoring, and arguing about actual architectural constraints in this workspace.

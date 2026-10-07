@@ -40,14 +40,14 @@ To master an unfamiliar codebase, you must learn to read it systematically. Thes
 ---
 
 ## Kata 6: Unified Request Validation Middleware
-* **File Anchor**: [backend/src/shared/middleware/validation.middleware.ts:6-14](backend/src/shared/middleware/validation.middleware.ts#L6-L14)
+* **File Anchor**: [backend/src/middleware/validate.middleware.ts:4-17](backend/src/middleware/validate.middleware.ts#L4-L17)
 * **Goal**: Trace request sanitization gates.
-* **Question**: How does this helper convert Zod error arrays into clean, localized client response payloads? What HTTP status code is returned?
+* **Question**: Trick question — this helper never builds the client payload. Trace where a `ZodError` thrown by `schema.parse` actually becomes JSON (follow `next(error)` into `error.middleware.ts`). What HTTP status code is returned, and which function flattens the field errors?
 
 ---
 
 ## Kata 7: Role Permissions Verification Matrix
-* **File Anchor**: [backend/src/shared/middleware/requirePermission.middleware.ts:18-30](backend/src/shared/middleware/requirePermission.middleware.ts#L18-L30)
+* **File Anchor**: [backend/src/middleware/requirePermission.middleware.ts:19-51](backend/src/middleware/requirePermission.middleware.ts#L19-L51)
 * **Goal**: Trace access boundary controls.
 * **Question**: Describe how the permission matrix verifies a user's rights. What happens if `req.user` is undefined when the gate executes?
 

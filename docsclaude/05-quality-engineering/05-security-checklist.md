@@ -25,19 +25,10 @@ This secure coding checklist maps common OWASP vulnerabilities directly to our p
 
 ---
 
-## 3. Preventing Insecure Direct Object Reference (IDOR)
+## 3. Insecure Direct Object Reference (IDOR) — partially open
 * **Vulnerability**: An authenticated user modifies a database key (like a case ID UUID) inside a request URL to read or modify a resource belonging to another tenant or department.
-* **Our Protection**: We enforce **Department-Aware Scoping**. When non-admin users query cases, we automatically append their `departmentId` constraint directly to the database query filters.
-* **File Anchor**: [backend/src/shared/middleware/requirePermission.middleware.ts:31-38](backend/src/shared/middleware/requirePermission.middleware.ts#L31-L38):
-  ```typescript
-      const userPermissions = ROLE_PERMISSIONS[user.role as Role] || [];
-      if (!userPermissions.includes(permission)) {
-        throw new AppError(
-          ErrorCodes.FORBIDDEN,
-          403,
-          `Permission required: ${permission}`
-        );
-  ```
+* **What protects us today**: action-level RBAC only. `requirePermission` → `requireRole` throws 401/403 before the controller runs ([backend/src/middleware/requirePermission.middleware.ts:35-59](backend/src/middleware/requirePermission.middleware.ts#L35-L59)).
+* **What does not exist yet**: automatic row-level department scoping. `OnboardingCaseService.getAll` applies a `departmentId` filter only when the caller supplies one ([backend/src/modules/onboardingCases/onboardingCases.service.ts:44-53](backend/src/modules/onboardingCases/onboardingCases.service.ts#L44-L53)), and by-ID lookups carry no department condition — a user whose role passes the gate can read another department's case by ID. Closing this is Exercise 3 in `03-server-mastery/exercises.md` (`requireDepartmentAccess`); prefer returning 404 over 403 on mismatch so attackers cannot confirm a foreign resource exists.
 
 ---
 

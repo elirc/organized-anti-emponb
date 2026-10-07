@@ -27,13 +27,7 @@ During senior engineering interviews, you must back up behavioral claims with re
 ## Scenario 3: Designing Multi-Tenant Security Boundaries
 * **Situation**: The platform needed to support multi-tenant department views while preventing Insecure Direct Object Reference (IDOR) attacks.
 * **Task**: Secure the API to prevent authenticated users from viewing or modifying task checklists belonging to other departments.
-* **Action**: We designed a permissions-based RBAC matrix coupled with **Department-Aware Scoping**:
-  [backend/src/shared/middleware/requirePermission.middleware.ts:31-38](backend/src/shared/middleware/requirePermission.middleware.ts#L31-L38)
-  When users query cases, the database service automatically appends their `departmentId` constraint to the search filters:
-  ```ts
-  const onboardingCase = await prisma.onboardingCase.findUnique({
-    where: { id: caseId, departmentId: user.departmentId }
-  });
-  ```
-  If a manager tries to access a case from another department, the query returns `null`, causing the server to return a clean `404 Not Found` response.
-* **Result**: Complete isolation of department data with zero IDOR leaks, satisfying SOC2 audit parameters.
+* **Action**: We designed a permissions-based RBAC matrix — `PermissionMatrix` maps each action to the roles allowed to perform it, and `requirePermission` delegates to `requireRole`, which throws a 401 for missing auth and a 403 for an insufficient role:
+  [backend/src/middleware/requirePermission.middleware.ts:19-59](backend/src/middleware/requirePermission.middleware.ts#L19-L59)
+* **The honest part — and the stronger interview answer**: role gates control *which actions* a user may perform, not *which rows* they may see. In this codebase, department scoping is an **optional, caller-supplied filter** (`OnboardingCaseService.getAll` applies `where.departmentId` only when the caller passes one — [backend/src/modules/onboardingCases/onboardingCases.service.ts:44-53](backend/src/modules/onboardingCases/onboardingCases.service.ts#L44-L53)); nothing automatically constrains a lookup by the requester's own department. That residual IDOR surface is exactly what Exercise 3 in `03-server-mastery/exercises.md` has you close with a `requireDepartmentAccess` middleware — and in an interview, naming a real gap and its fix lands better than claiming "zero IDOR leaks".
+* **Result**: Action-level access control enforced centrally in middleware; row-level department isolation identified as the next hardening step, with the design for it written down.

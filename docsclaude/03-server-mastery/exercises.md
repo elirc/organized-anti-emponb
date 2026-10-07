@@ -45,15 +45,15 @@ await prisma.$transaction(async (tx) => {
 
 ## Exercise 2: Tracing an IDOR Attack (Concept: Security)
 
-Open [backend/src/shared/middleware/requirePermission.middleware.ts:31-38](backend/src/shared/middleware/requirePermission.middleware.ts#L31-L38). Imagine a manager with `departmentId: "DEPT-SALES"` attempts to retrieve a task from `departmentId: "DEPT-IT"` using the task's UUID.
+Open [backend/src/middleware/requirePermission.middleware.ts:19-59](backend/src/middleware/requirePermission.middleware.ts#L19-L59). Imagine a manager with `departmentId: "DEPT-SALES"` attempts to retrieve a case from `departmentId: "DEPT-IT"` using the case's ID.
 
-Explain how our permissions-based middleware and department checks prevent this. What JSON response will the manager receive?
+Trace what the code **actually does** — not what it should do. Does anything stop this request? What JSON response will the manager receive?
 
 ### Self-Grading Guide:
-* **To score a 3**: You must explain that:
-  1. The manager holds the `VIEW_TASK` permission, so the permission check passes.
-  2. However, the subsequent service layer query filters results by `departmentId: user.departmentId` (or verifies matches before returning).
-  3. If there is a mismatch, the database returns `null`, and the server returns a `404 Not Found` response instead of a `403 Forbidden` response. This prevents attackers from even confirming the existence of resources belonging to other departments.
+* **To score a 3**: You must discover that:
+  1. The role gate passes: `requireRole` only checks that the manager's role is in the allowed list for the route — the `PermissionMatrix` has no row-level concept at all (and note the real matrix keys: there is no `VIEW_TASK`; the case-viewing key is `VIEW_ALL_CASES`).
+  2. The service layer does **not** automatically scope by department: `OnboardingCaseService.getAll` applies `where.departmentId` only when the caller passes a filter ([onboardingCases.service.ts:44-53](../../backend/src/modules/onboardingCases/onboardingCases.service.ts)), and the by-ID lookup has no department condition. The cross-department read succeeds today — this is a genuine IDOR gap, which is why Exercise 3 exists.
+  3. The fix you build in Exercise 3 should return `404 Not Found` rather than `403 Forbidden` on a department mismatch, so an attacker cannot use the status code to confirm that a resource exists in another department.
 
 ---
 

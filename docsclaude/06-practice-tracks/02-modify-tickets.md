@@ -54,7 +54,7 @@ Transitioning to a senior engineer requires writing modifications that blend int
 ---
 
 ## 8. Hard: Custom RBAC Role Implementation
-* **Target File**: [backend/src/shared/middleware/requirePermission.middleware.ts:6-25](backend/src/shared/middleware/requirePermission.middleware.ts#L6-L25)
+* **Target File**: [backend/src/middleware/requirePermission.middleware.ts:6-30](backend/src/middleware/requirePermission.middleware.ts#L6-L30)
 * **Goal**: Register a new platform security role.
 * **Requirements**: Add a new role `AUDITOR` to the permission matrix. The Auditor must hold permissions to view cases and audit logs but must be completely blocked from creating or modifying tasks.
 
